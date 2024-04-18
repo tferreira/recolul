@@ -1,7 +1,13 @@
 import requests
 from bs4 import BeautifulSoup
 
-from recolul.recoru.attendance_chart import AttendanceChart, ChartHeader, ChartRow, ChartRowEntry
+from recolul.recoru.attendance_chart import (
+    AttendanceChart,
+    ChartHeader,
+    ChartRow,
+    ChartRowEntry,
+)
+from recolul.recoru.attendance_summary import AttendanceSummary, SummaryItem
 
 
 class RecoruSession:
@@ -73,3 +79,16 @@ class RecoruSession:
         if current_row_entries:
             chart_rows.append(ChartRow(current_row_entries))
         return chart_rows
+
+    @staticmethod
+    def _parse_attendance_summary(text: str) -> AttendanceSummary:
+        soup = BeautifulSoup(text, "html.parser")
+        parent_div = soup.select_one("#ID-AC_SUMMARY_2")
+
+        summary_items = []
+        child_div = parent_div.find("div", recursive=False)
+        for div in child_div.find_all("div", recursive=False):
+            entry = SummaryItem(div)
+            summary_items.append(entry)
+
+        return summary_items

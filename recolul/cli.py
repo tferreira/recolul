@@ -8,7 +8,7 @@ from recolul.duration import Duration
 from recolul.errors import NoClockInError
 from recolul.recoru.attendance_chart import AttendanceChart
 from recolul.recoru.recoru_session import RecoruSession
-from recolul.time import get_entry_work_time, get_row_work_time, until_today
+from recolul.time import get_row_work_time, until_today
 
 
 def balance(exclude_last_day: bool) -> None:
