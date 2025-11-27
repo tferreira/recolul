@@ -1,9 +1,12 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QLabel, QPlainTextEdit, QVBoxLayout, QWidget
 
-from recolul.duration import Duration
 from recolul.recoru.attendance_chart import AttendanceChart
-from recolul.time import count_working_days, get_overtime_balance, until_today
+from recolul.time import (
+    get_max_wfh_time,
+    get_overtime_balance,
+    until_today,
+)
 
 
 class ThisMonth(QWidget):
@@ -29,5 +32,5 @@ class ThisMonth(QWidget):
         text += f"Total time per workplace:\n"
         for workplace, total_work_time in total_workplace_times.items():
             text += f"  {workplace}: {total_work_time}\n"
-        text += f"Maximum WFH time: {Duration(60) * count_working_days(self._full_attendance_chart)}"
+        text += f"Maximum WFH time: {get_max_wfh_time(self._full_attendance_chart)}"
         self._text_edit.setPlainText(text)

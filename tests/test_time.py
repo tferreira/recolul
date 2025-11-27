@@ -97,6 +97,22 @@ def test_double_leave_time():
     chart = load_mock_attendance_chart("when_double_leave.html")
     leave_times = get_leave_time(chart)
     assert leave_times == [
-        LeaveTime(includes_break=False, min_time=Duration.parse("14:22"), max_time=Duration.parse("15:00")),
-        LeaveTime(includes_break=True, min_time=Duration.parse("15:22"))
+        LeaveTime(
+            includes_break=False,
+            min_time=Duration.parse("14:22"),
+            max_time=Duration.parse("15:00"),
+        ),
+        LeaveTime(includes_break=True, min_time=Duration.parse("15:22")),
+    ]
+
+
+def test_leave_time_wfh_cutoff_time():
+    chart = load_mock_attendance_chart("wfh_cutoff_time.html")
+    leave_times = get_leave_time(chart)
+    assert leave_times == [
+        LeaveTime(
+            includes_break=True,
+            min_time=Duration.parse("19:00"),
+            wfh_cutoff_time=Duration.parse("12:00"),
+        )
     ]

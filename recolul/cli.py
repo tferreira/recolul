@@ -4,11 +4,10 @@ from getpass import getpass
 
 from recolul import __version__, plotting, time
 from recolul.config import Config
-from recolul.duration import Duration
 from recolul.errors import NoClockInError
 from recolul.recoru.attendance_chart import AttendanceChart
 from recolul.recoru.recoru_session import RecoruSession
-from recolul.time import get_row_work_time, until_today
+from recolul.time import get_max_wfh_time, get_row_work_time, until_today
 
 
 def balance(exclude_last_day: bool) -> None:
@@ -21,9 +20,7 @@ def balance(exclude_last_day: bool) -> None:
     print(f"Total time per workplace:")
     for workplace, total_work_time in total_workplace_times.items():
         print(f"  {workplace}: {total_work_time}")
-    print(
-        f"Maximum WFH time this month: {Duration(60) * time.count_working_days(full_attendance_chart)}"
-    )
+    print(f"Maximum WFH time this month: {get_max_wfh_time(full_attendance_chart)}")
 
     if exclude_last_day:
         return
@@ -35,9 +32,9 @@ def balance(exclude_last_day: bool) -> None:
 
 
 def when_to_leave() -> None:
-    attendance_chart = until_today(_get_attendance_chart())
     try:
-        leave_times = time.get_leave_time(attendance_chart)
+        full_attendance_chart = _get_attendance_chart()
+        leave_times = time.get_leave_time(full_attendance_chart)
     except NoClockInError:
         print("You have already clocked out.")
         return
@@ -50,6 +47,13 @@ def when_to_leave() -> None:
             f"Leave between {leave_times[0].min_time} and {leave_times[0].max_time}, or """
             f"after {leave_times[1].min_time}."
         )
+
+    for lt in leave_times:
+        if not lt.wfh_cutoff_time:
+            continue
+        break_msg = "(break time included)" if lt.wfh_cutoff_includes_break else "(break time not included)"
+        print(f"Warning! Reaching maximum monthly WFH hours at {lt.wfh_cutoff_time} {break_msg}.")
+        break
 
 
 def update_config() -> None:

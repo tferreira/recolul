@@ -18,6 +18,21 @@ def until_today(attendance_chart: AttendanceChart) -> AttendanceChart:
     ]
 
 
+def get_max_wfh_time(full_attendance_chart: AttendanceChart) -> Duration:
+    """Returns the total WFH time doable this month"""
+    return Duration(60) * count_working_days(full_attendance_chart)
+
+
+def get_remaining_wfh_time(full_attendance_chart: AttendanceChart):
+    """Returns the remaining WFH hours doable this month"""
+    max_wfh_hours = get_max_wfh_time(full_attendance_chart)
+    attendance_chart = until_today(full_attendance_chart)
+    _, total_workplace_times = get_overtime_balance(attendance_chart[:-1])
+
+    remaining = max_wfh_hours - total_workplace_times.get("WFH", Duration(0))
+    return remaining if remaining else Duration(0)
+
+
 def get_entry_work_time(entry: ChartRowEntry) -> Duration:
     """
     Get work time from the column if available,
@@ -99,18 +114,23 @@ class LeaveTime:
     includes_break: bool
     min_time: Duration
     max_time: Duration | None = None
+    wfh_cutoff_time: Duration | None = None
+    wfh_cutoff_includes_break: bool = False
 
 
-def get_leave_time(attendance_chart: AttendanceChart) -> list[LeaveTime]:
+def get_leave_time(full_attendance_chart: AttendanceChart) -> list[LeaveTime]:
+    attendance_chart = until_today(full_attendance_chart)
     day_base_hours = Duration(8 * 60)
     overtime_balance, _ = get_overtime_balance(attendance_chart[:-1])
 
     last_row = attendance_chart[-1]
     last_clock_in = None
+    is_wfh = False
     for entry in last_row.entries:
         if entry.clock_in_time and not entry.clock_out_time:
             # In progress
             last_clock_in = Duration.parse(entry.clock_in_time)
+            is_wfh = entry.workplace == "WFH"
         else:
             # Complete entry
             overtime_balance += get_entry_work_time(entry)
@@ -118,13 +138,29 @@ def get_leave_time(attendance_chart: AttendanceChart) -> list[LeaveTime]:
         raise NoClockInError()
 
     required_today = day_base_hours - overtime_balance
+
+    # When in WFH, the required hours cannot exceed the remaining WFH hours.
+    wfh_remaining_hours = get_remaining_wfh_time(full_attendance_chart)
+    wfh_cutoff_time: Duration | None = None
+    wfh_cutoff_includes_break = False
+    if is_wfh and wfh_remaining_hours < required_today:
+        wfh_cutoff_time = last_clock_in + wfh_remaining_hours
+        if required_today > _MIN_HOURS_FOR_MANDATORY_BREAK and wfh_remaining_hours > _MIN_HOURS_FOR_MANDATORY_BREAK:
+            wfh_cutoff_time += Duration(60)
+            wfh_cutoff_includes_break = True
+
     leave_time_without_break = last_clock_in + required_today
     leave_time_with_break = last_clock_in + required_today + Duration(60)
     if required_today > _MIN_HOURS_FOR_MANDATORY_BREAK:
         # When more than 6 hours must be achieved during the day,
         # add a mandatory 1-hour break time.
         return [
-            LeaveTime(includes_break=True, min_time=leave_time_with_break)
+            LeaveTime(
+                includes_break=True,
+                min_time=leave_time_with_break,
+                wfh_cutoff_time=wfh_cutoff_time,
+                wfh_cutoff_includes_break=wfh_cutoff_includes_break,
+            )
         ]
     if required_today > _MIN_HOURS_FOR_MANDATORY_BREAK - Duration(60):
         # When the required time is between 5 and 6 hours, there is a first interval where
@@ -133,13 +169,25 @@ def get_leave_time(attendance_chart: AttendanceChart) -> list[LeaveTime]:
         first_leave_time = LeaveTime(
             includes_break=False,
             min_time=leave_time_without_break,
-            max_time=last_clock_in + _MIN_HOURS_FOR_MANDATORY_BREAK
+            max_time=last_clock_in + _MIN_HOURS_FOR_MANDATORY_BREAK,
+            wfh_cutoff_time=wfh_cutoff_time,
+            wfh_cutoff_includes_break=wfh_cutoff_includes_break,
         )
-        second_leave_time = LeaveTime(includes_break=True, min_time=leave_time_with_break)
+        second_leave_time = LeaveTime(
+            includes_break=True,
+            min_time=leave_time_with_break,
+            wfh_cutoff_time=wfh_cutoff_time,
+            wfh_cutoff_includes_break=wfh_cutoff_includes_break,
+        )
         return [first_leave_time, second_leave_time]
     return [
-            LeaveTime(includes_break=False, min_time=leave_time_without_break)
-        ]
+        LeaveTime(
+            includes_break=False,
+            min_time=leave_time_without_break,
+            wfh_cutoff_time=wfh_cutoff_time,
+            wfh_cutoff_includes_break=wfh_cutoff_includes_break,
+        )
+    ]
 
 
 def count_working_days(attendance_chart: AttendanceChart) -> int:

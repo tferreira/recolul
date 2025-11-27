@@ -23,6 +23,8 @@ class Duration:
     __str__ = __repr__
 
     def __eq__(self, other):
+        if other is None:
+            return False
         return self.minutes == other.minutes
 
     def __neq__(self, other):
